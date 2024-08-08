@@ -17,7 +17,7 @@ function closeFlashMessage(button) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('uploadForm').addEventListener('submit', function(event) {
+    document.getElementById('uploadForm').addEventListener('submit', async function(event) {
         event.preventDefault(); // Prevent the default form submission
 
         const fileInput = document.getElementById('file');
@@ -29,25 +29,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const dept = deptInput.value;
 
         if (file && title && dept) {
-            // For demonstration purposes, file compression is not implemented here
-            // You can use a JavaScript library to compress PDF files if needed
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('title', title);
-            formData.append('dept', dept);
+            const chunkSize = 1024 * 1024; // 1MB chunks
+            const totalChunks = Math.ceil(file.size / chunkSize);
 
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(result => {
-                alert('File uploaded successfully!');
-                console.log(result);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                const chunk = file.slice(start, end);
+
+                const formData = new FormData();
+                formData.append('file', chunk);
+                formData.append('title', title);
+                formData.append('dept', dept);
+                formData.append('chunkNumber', i + 1);
+                formData.append('totalChunks', totalChunks);
+
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Chunk upload failed');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Failed to upload file.');
+                    return;
+                }
+            }
+
+            alert('File uploaded successfully!');
         } else {
             alert('Please fill in all fields.');
         }
